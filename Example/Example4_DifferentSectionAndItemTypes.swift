@@ -17,28 +17,43 @@ class MultipleSectionModelViewController: UIViewController {
     @IBOutlet weak var tableView: UITableView!
     let disposeBag = DisposeBag()
     
+    let dataSource = RxTableViewSectionedAnimatedDataSource<MultipleSectionModel>()
+    let sections = PublishSubject<[MultipleSectionModel]>()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let sections: [MultipleSectionModel] = [
+
+        skinTableViewDataSource(dataSource)
+        
+        sections
+            .bindTo(tableView.rx_itemsWithDataSource(dataSource))
+            .addDisposableTo(disposeBag)
+        
+        sections.onNext([
             .ImageProvidableSection(title: "Section 1",
                 items: [.ImageSectionItem(image: UIImage(named: "settings")!, title: "General")]),
             .ToggleableSection(title: "Section 2",
                 items: [.ToggleableSectionItem(title: "On", enabled: true)]),
             .StepperableSection(title: "Section 3",
                 items: [.StepperSectionItem(title: "1")])
-        ]
+            ])
         
-        let dataSource = RxTableViewSectionedReloadDataSource<MultipleSectionModel>()
-
-        skinTableViewDataSource(dataSource)
-        
-        Observable.just(sections)
-            .bindTo(tableView.rx_itemsWithDataSource(dataSource))
-            .addDisposableTo(disposeBag)
+        performSelector(#selector(test), withObject: nil, afterDelay: 2.0)
     }
     
-    func skinTableViewDataSource(dataSource: RxTableViewSectionedReloadDataSource<MultipleSectionModel>) {
+    func test() {
+        sections.onNext([
+            .ImageProvidableSection(title: "Section 1",
+                items: []),
+            .ToggleableSection(title: "Section 2",
+                items: [.ToggleableSectionItem(title: "On", enabled: true)]),
+            .StepperableSection(title: "Section 3",
+                items: [.StepperSectionItem(title: "1")])
+            ])
+    }
+    
+    func skinTableViewDataSource(dataSource: RxTableViewSectionedAnimatedDataSource<MultipleSectionModel>) {
         dataSource.configureCell = { (dataSource, table, idxPath, _) in
             switch dataSource.itemAtIndexPath(idxPath) {
             case let .ImageSectionItem(image, title):
@@ -81,8 +96,24 @@ enum SectionItem {
     case StepperSectionItem(title: String)
 }
 
-extension MultipleSectionModel: SectionModelType {
+extension SectionItem: IdentifiableType, Equatable {
+    var identity: String {
+        return "\(self)"
+    }
+}
+
+func ==(lhs: SectionItem, rhs: SectionItem) -> Bool {
+    switch (lhs, rhs) {
+    case (.ImageSectionItem, .ImageSectionItem): return true
+    case (.ToggleableSectionItem, .ToggleableSectionItem): return true
+    case (.StepperSectionItem, .StepperSectionItem): return true
+    default: return false
+    }
+}
+
+extension MultipleSectionModel: AnimatableSectionModelType {
     typealias Item = SectionItem
+    typealias Identity = String
     
     var items: [SectionItem] {
         switch  self {
@@ -97,6 +128,10 @@ extension MultipleSectionModel: SectionModelType {
     
     init(original: MultipleSectionModel, items: [Item]) {
         self = original
+    }
+    
+    var identity: String {
+        return title
     }
 }
 
